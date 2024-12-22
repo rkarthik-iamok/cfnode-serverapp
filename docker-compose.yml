@@ -1,0 +1,47 @@
+# docker-compose --env-file ./serverapp/.env up
+# docker-compose --env-file ./serverapp/.env down --rmi=all -v
+
+services:
+  serverapp:
+    build:
+      dockerfile: serverapp.Dockerfile
+      context: serverapp/
+      args:
+        PORT: $PORT
+    image: serverapp:v1
+    container_name: serverapp
+    hostname: serverapp.ztnaut.com
+    ports:
+      - "${PORT}:${PORT}"
+
+    volumes:
+      - ./serverapp:/app
+      - /app/node_modules
+
+  nginxproxy:
+    container_name: nginxproxy
+    hostname: nginxproxy.ztnaut.com
+    image: nginx:1-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginxconfig/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginxconfig/origincertprivate.pem:/etc/nginx/conf.d/ztnaut.key
+      - ./nginxconfig/origincertificate.pem:/etc/nginx/conf.d/ztnaut-new.pem
+
+    depends_on:
+      - serverapp
+
+  tunnel:
+    container_name: cloudflaredzt-origin-tunnel
+    image: cloudflare/cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+
+networks:
+  cfserverapp:
+    name: cfserverapp
